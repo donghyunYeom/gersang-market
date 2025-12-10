@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     // 통계만 조회
     if (statsOnly) {
-      const stats = getPriceStats();
+      const stats = await getPriceStats();
       return NextResponse.json({
         success: true,
         data: stats,
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // 특정 아이템 히스토리 조회
     if (itemName) {
-      const history = getItemPriceHistory(itemName);
+      const history = await getItemPriceHistory(itemName);
       return NextResponse.json({
         success: true,
         itemName,
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     // 특정 날짜 데이터 조회
     if (date) {
-      const entries = getPricesByDate(date);
+      const entries = await getPricesByDate(date);
       return NextResponse.json({
         success: true,
         date,
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 전체 히스토리 조회
-    const history = readPriceHistory();
+    const history = await readPriceHistory();
     return NextResponse.json({
       success: true,
       data: history,

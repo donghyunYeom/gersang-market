@@ -140,8 +140,10 @@ export async function GET(request: NextRequest) {
     let savedEntry = null;
     if (!skipSave) {
       try {
-        savedEntry = savePriceHistory(prices);
-        console.log(`가격 히스토리 저장 완료: ${savedEntry.date} ${savedEntry.hour}시`);
+        savedEntry = await savePriceHistory(prices);
+        if (savedEntry) {
+          console.log(`가격 히스토리 저장 완료: ${savedEntry.date} ${savedEntry.hour}시`);
+        }
       } catch (saveError) {
         console.error('히스토리 저장 오류:', saveError);
       }

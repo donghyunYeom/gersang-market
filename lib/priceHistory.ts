@@ -1,9 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import { kv } from '@vercel/kv';
 import { PriceInfo } from './items';
-
-// Vercel 서버리스 환경 체크
-const isVercel = process.env.VERCEL === '1';
 
 // 가격 히스토리 데이터 구조
 export interface PriceHistoryEntry {
@@ -23,34 +19,18 @@ export interface PriceHistoryFile {
   entries: PriceHistoryEntry[];
 }
 
-// 데이터 저장 경로
-const DATA_DIR = path.join(process.cwd(), 'data');
-const HISTORY_FILE = path.join(DATA_DIR, 'price-history.json');
+// KV 키 상수
+const HISTORY_KEY = 'price-history';
+const MAX_ENTRIES = 168; // 7일 × 24시간
 
-// 데이터 디렉토리 생성
-function ensureDataDir(): boolean {
-  if (isVercel) return false; // Vercel에서는 파일 저장 불가
-
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    return true;
-  } catch {
-    return false;
-  }
+// KV 사용 가능 여부 확인
+function isKVAvailable(): boolean {
+  return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 }
 
-// 히스토리 파일 읽기
-export function readPriceHistory(): PriceHistoryFile {
-  if (!ensureDataDir()) {
-    return {
-      lastUpdated: new Date().toISOString(),
-      entries: [],
-    };
-  }
-
-  if (!fs.existsSync(HISTORY_FILE)) {
+// 히스토리 읽기
+export async function readPriceHistory(): Promise<PriceHistoryFile> {
+  if (!isKVAvailable()) {
     return {
       lastUpdated: new Date().toISOString(),
       entries: [],
@@ -58,10 +38,13 @@ export function readPriceHistory(): PriceHistoryFile {
   }
 
   try {
-    const data = fs.readFileSync(HISTORY_FILE, 'utf-8');
-    return JSON.parse(data);
+    const history = await kv.get<PriceHistoryFile>(HISTORY_KEY);
+    return history || {
+      lastUpdated: new Date().toISOString(),
+      entries: [],
+    };
   } catch (error) {
-    console.error('히스토리 파일 읽기 오류:', error);
+    console.error('KV 읽기 오류:', error);
     return {
       lastUpdated: new Date().toISOString(),
       entries: [],
@@ -69,26 +52,32 @@ export function readPriceHistory(): PriceHistoryFile {
   }
 }
 
-// 히스토리 파일 저장
-function writePriceHistory(history: PriceHistoryFile): boolean {
-  if (!ensureDataDir()) return false;
+// 히스토리 저장
+async function writePriceHistory(history: PriceHistoryFile): Promise<boolean> {
+  if (!isKVAvailable()) return false;
 
   try {
-    fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8');
+    await kv.set(HISTORY_KEY, history);
     return true;
-  } catch {
+  } catch (error) {
+    console.error('KV 저장 오류:', error);
     return false;
   }
 }
 
 // 가격 데이터 저장 (중복 체크: 같은 시간대에는 한 번만 저장)
-export function savePriceHistory(prices: Record<string, PriceInfo>): PriceHistoryEntry {
+export async function savePriceHistory(prices: Record<string, PriceInfo>): Promise<PriceHistoryEntry | null> {
+  if (!isKVAvailable()) {
+    console.log('KV not available, skipping save');
+    return null;
+  }
+
   const now = new Date();
   const timestamp = now.toISOString();
   const date = timestamp.split('T')[0];
   const hour = now.getHours();
 
-  const history = readPriceHistory();
+  const history = await readPriceHistory();
 
   // 같은 날짜, 같은 시간대에 이미 데이터가 있는지 확인
   const existingIndex = history.entries.findIndex(
@@ -122,11 +111,10 @@ export function savePriceHistory(prices: Record<string, PriceInfo>): PriceHistor
     history.entries.push(entry);
   }
 
-  // 최근 7일 데이터만 유지 (168시간)
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  history.entries = history.entries.filter(
-    e => new Date(e.timestamp) >= sevenDaysAgo
-  );
+  // 최근 168개 (7일) 데이터만 유지
+  if (history.entries.length > MAX_ENTRIES) {
+    history.entries = history.entries.slice(-MAX_ENTRIES);
+  }
 
   // 시간순 정렬
   history.entries.sort((a, b) =>
@@ -134,13 +122,13 @@ export function savePriceHistory(prices: Record<string, PriceInfo>): PriceHistor
   );
 
   history.lastUpdated = timestamp;
-  writePriceHistory(history);
+  const saved = await writePriceHistory(history);
 
-  return entry;
+  return saved ? entry : null;
 }
 
 // 특정 아이템의 가격 히스토리 조회
-export function getItemPriceHistory(itemName: string): {
+export async function getItemPriceHistory(itemName: string): Promise<{
   timestamp: string;
   date: string;
   hour: number;
@@ -148,8 +136,8 @@ export function getItemPriceHistory(itemName: string): {
   maxPrice: number;
   avgPrice: number;
   quantity: number;
-}[] {
-  const history = readPriceHistory();
+}[]> {
+  const history = await readPriceHistory();
 
   return history.entries
     .filter(entry => entry.prices[itemName])
@@ -162,47 +150,26 @@ export function getItemPriceHistory(itemName: string): {
 }
 
 // 특정 날짜의 전체 가격 데이터 조회
-export function getPricesByDate(date: string): PriceHistoryEntry[] {
-  const history = readPriceHistory();
+export async function getPricesByDate(date: string): Promise<PriceHistoryEntry[]> {
+  const history = await readPriceHistory();
   return history.entries.filter(entry => entry.date === date);
 }
 
 // 최신 저장된 가격 데이터 조회
-export function getLatestPrices(): PriceHistoryEntry | null {
-  const history = readPriceHistory();
+export async function getLatestPrices(): Promise<PriceHistoryEntry | null> {
+  const history = await readPriceHistory();
   if (history.entries.length === 0) return null;
   return history.entries[history.entries.length - 1];
 }
 
-// 가격 변동 계산 (현재 vs 이전)
-export function calculatePriceChange(
-  itemName: string,
-  currentPrice: number
-): { change: number; changePercent: number; previousPrice: number } | null {
-  const history = getItemPriceHistory(itemName);
-
-  if (history.length < 2) return null;
-
-  // 가장 최근 이전 데이터
-  const previousEntry = history[history.length - 2];
-  const previousPrice = previousEntry.minPrice;
-
-  const change = currentPrice - previousPrice;
-  const changePercent = previousPrice > 0
-    ? Math.round((change / previousPrice) * 10000) / 100
-    : 0;
-
-  return { change, changePercent, previousPrice };
-}
-
 // 통계 정보 생성
-export function getPriceStats(): {
+export async function getPriceStats(): Promise<{
   totalEntries: number;
   dateRange: { from: string; to: string } | null;
   itemCount: number;
   lastUpdated: string;
-} {
-  const history = readPriceHistory();
+}> {
+  const history = await readPriceHistory();
 
   if (history.entries.length === 0) {
     return {
