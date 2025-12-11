@@ -208,15 +208,22 @@ export default function MercenaryCard({
                           )}
                         </div>
                       </div>
-                      {/* 각성장수 재료 */}
+                      {/* 하위 용병 재료 */}
                       <div className="flex flex-wrap gap-2 text-xs">
                         {child.items.map(item => {
                           const priceInfo = prices[item.name];
                           const hasPrice = priceInfo && priceInfo.minPrice > 0;
+                          const isModified = child.classTypeName === '개조장수';
                           return (
                             <span
                               key={item.name}
-                              className={`px-2 py-1 rounded ${hasPrice ? 'bg-[#1a1a1a] text-white' : 'bg-[#1a1a1a] text-[#737373]'}`}
+                              className={`px-2 py-1 rounded ${
+                                hasPrice
+                                  ? 'bg-[#1a1a1a] text-white'
+                                  : isModified
+                                    ? 'bg-[#1a1a1a] text-[#a3a3a3]'  // 개조장수 재료: 밝은 회색
+                                    : 'bg-[#1a1a1a] text-[#737373]'
+                              }`}
                             >
                               {item.name} {item.quantity}개
                               {hasPrice && (

@@ -39,6 +39,82 @@ function parseCraftingMaterials(materialsStr: string): ItemRequirement[] {
   });
 }
 
+// 개조장수 데이터 (재료는 육의전에서 구매 불가 - 개수만 표시)
+const MODIFIED_MERCENARIES: Record<number, ChildMercenary> = {
+  134: {
+    id: 134,
+    name: '개량된 흑룡차',
+    imgPath: 'https://cdn.jsdelivr.net/gh/gh777kkk/gersanginfo-img@main/characters/PORTRAIT_INVEN_3_66.png',
+    attributesName: '水',
+    countryName: '일본',
+    items: [{ name: '변이된 용의 보주', quantity: 20 }],
+    classTypeName: '개조장수',
+  },
+  133: {
+    id: 133,
+    name: '개량된 지진차',
+    imgPath: 'https://cdn.jsdelivr.net/gh/gh777kkk/gersanginfo-img@main/characters/PORTRAIT_INVEN_2_293.png',
+    attributesName: '火',
+    countryName: '일본',
+    items: [{ name: '연발 총신', quantity: 20 }],
+    classTypeName: '개조장수',
+  },
+  129: {
+    id: 129,
+    name: '개량된 발석거',
+    imgPath: 'https://cdn.jsdelivr.net/gh/gh777kkk/gersanginfo-img@main/characters/PORTRAIT_INVEN_3_67.png',
+    attributesName: '水',
+    countryName: '중국',
+    items: [{ name: '봉인부적', quantity: 20 }],
+    classTypeName: '개조장수',
+  },
+  128: {
+    id: 128,
+    name: '개량된 불랑기포',
+    imgPath: 'https://cdn.jsdelivr.net/gh/gh777kkk/gersanginfo-img@main/characters/PORTRAIT_INVEN_2_295.png',
+    attributesName: '火',
+    countryName: '중국',
+    items: [{ name: '노획한 포탄', quantity: 20 }],
+    classTypeName: '개조장수',
+  },
+  124: {
+    id: 124,
+    name: '개량된 봉황비조',
+    imgPath: 'https://cdn.jsdelivr.net/gh/gh777kkk/gersanginfo-img@main/characters/PORTRAIT_INVEN_3_46.png',
+    attributesName: '火',
+    countryName: '대만',
+    items: [{ name: '불타는깃털', quantity: 20 }],
+    classTypeName: '개조장수',
+  },
+  123: {
+    id: 123,
+    name: '개량된 화룡차',
+    imgPath: 'https://cdn.jsdelivr.net/gh/gh777kkk/gersanginfo-img@main/characters/PORTRAIT_INVEN_2_294.png',
+    attributesName: '火',
+    countryName: '대만',
+    items: [{ name: '거대 화룡의 머리뼈', quantity: 20 }],
+    classTypeName: '개조장수',
+  },
+  119: {
+    id: 119,
+    name: '개량된 뇌전차',
+    imgPath: 'https://cdn.jsdelivr.net/gh/gh777kkk/gersanginfo-img@main/characters/PORTRAIT_INVEN_3_45.png',
+    attributesName: '雷',
+    countryName: '조선',
+    items: [{ name: '진은조각', quantity: 20 }],
+    classTypeName: '개조장수',
+  },
+  118: {
+    id: 118,
+    name: '개량된 거북차',
+    imgPath: 'https://cdn.jsdelivr.net/gh/gh777kkk/gersanginfo-img@main/characters/PORTRAIT_INVEN_2_292.png',
+    attributesName: '火',
+    countryName: '조선',
+    items: [{ name: '신기전의화살', quantity: 20 }],
+    classTypeName: '개조장수',
+  },
+};
+
 // 각성장수 데이터
 const AWAKENED_MERCENARIES: Record<number, ChildMercenary> = {
   146: {
@@ -238,17 +314,30 @@ const LEGEND_TO_AWAKENED: Record<number, number[]> = {
   160: [127, 126, 122, 146], // 선인 만선야
   159: [131, 139, 136, 137], // 모치즈키 치요메
   158: [130, 132, 127, 144], // 봉선 여포
-  157: [122, 140, 120],      // 도사 홍길동 (개량된 흑룡차 제외)
+  157: [122, 140, 120],      // 도사 홍길동
   156: [144, 146, 142, 143], // 악바르 대제
-  155: [137, 125],           // 해신 마조 (개량된 화룡차, 봉황비조 제외)
-  154: [135, 136, 126],      // 검성 보쿠텐 (개량된 지진차 제외)
-  153: [132, 131, 120],      // 여걸 화목란 (개량된 발석거 제외)
-  152: [121],                // 도령 최무선 (개량된 차들 제외)
+  155: [137, 125],           // 해신 마조
+  154: [135, 136, 126],      // 검성 보쿠텐
+  153: [132, 131, 120],      // 여걸 화목란
+  152: [121],                // 도령 최무선
   151: [138, 145, 141, 139], // 재상 바지라오
-  150: [130],                // 군신 노부츠나 (미나모토, 개량된 차들 제외)
-  149: [121],                // 야왕 맹획 (맹호, 개량된 차들 제외)
-  148: [125],                // 무희 초선 (고조 유방, 개량된 차들 제외)
-  147: [135],                // 신궁 주몽 (김유신, 개량된 차들 제외)
+  150: [130],                // 군신 노부츠나
+  149: [121],                // 야왕 맹획
+  148: [125],                // 무희 초선
+  147: [135],                // 신궁 주몽
+};
+
+// 전설장수와 필요한 개조장수 ID 매핑
+const LEGEND_TO_MODIFIED: Record<number, number[]> = {
+  157: [134],           // 도사 홍길동 → 개량된 흑룡차
+  155: [123, 124],      // 해신 마조 → 개량된 화룡차, 봉황비조
+  154: [133],           // 검성 보쿠텐 → 개량된 지진차
+  153: [129],           // 여걸 화목란 → 개량된 발석거
+  152: [128, 119, 118], // 도령 최무선 → 불랑기포, 뇌전차, 거북차
+  150: [124, 119],      // 군신 노부츠나 → 봉황비조, 뇌전차
+  149: [134, 129],      // 야왕 맹획 → 흑룡차, 발석거
+  148: [133, 118],      // 무희 초선 → 지진차, 거북차
+  147: [128, 123],      // 신궁 주몽 → 불랑기포, 화룡차
 };
 
 // 전설장수 데이터
@@ -301,7 +390,10 @@ export const MERCENARIES: Mercenary[] = [
     countryName: '조선',
     items: parseCraftingMaterials('바람의속성석 40개, 정기의구슬(風) 25개, 바람의정령석 40개, 영웅의 영혼석 150개, 영혼이 봉인된 호리병 4개'),
     classTypeName: '전설장수',
-    childMercenaries: [122, 140, 120].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+    childMercenaries: [
+      ...[122, 140, 120].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+      ...[134].map(id => MODIFIED_MERCENARIES[id]).filter(Boolean),
+    ],
   },
   {
     id: 156,
@@ -321,7 +413,10 @@ export const MERCENARIES: Mercenary[] = [
     countryName: '대만',
     items: parseCraftingMaterials('물의속성석 40개, 정기의구슬(水) 25개, 물의정령석 40개, 영웅의 영혼석 150개, 영혼이 봉인된 호리병 4개'),
     classTypeName: '전설장수',
-    childMercenaries: [137, 125].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+    childMercenaries: [
+      ...[137, 125].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+      ...[123, 124].map(id => MODIFIED_MERCENARIES[id]).filter(Boolean),
+    ],
   },
   {
     id: 154,
@@ -331,7 +426,10 @@ export const MERCENARIES: Mercenary[] = [
     countryName: '일본',
     items: parseCraftingMaterials('바람의속성석 40개, 정기의구슬(風) 25개, 바람의정령석 40개, 영웅의 영혼석 150개, 영혼이 봉인된 호리병 4개'),
     classTypeName: '전설장수',
-    childMercenaries: [135, 136, 126].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+    childMercenaries: [
+      ...[135, 136, 126].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+      ...[133].map(id => MODIFIED_MERCENARIES[id]).filter(Boolean),
+    ],
   },
   {
     id: 153,
@@ -341,7 +439,10 @@ export const MERCENARIES: Mercenary[] = [
     countryName: '중국',
     items: parseCraftingMaterials('뇌전의속성석 40개, 정기의구슬(雷) 25개, 뇌전의정령석 40개, 영웅의 영혼석 150개, 영혼이 봉인된 호리병 4개'),
     classTypeName: '전설장수',
-    childMercenaries: [132, 131, 120].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+    childMercenaries: [
+      ...[132, 131, 120].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+      ...[129].map(id => MODIFIED_MERCENARIES[id]).filter(Boolean),
+    ],
   },
   {
     id: 152,
@@ -351,7 +452,10 @@ export const MERCENARIES: Mercenary[] = [
     countryName: '조선',
     items: parseCraftingMaterials('불의속성석 40개, 정기의구슬(火) 25개, 불의정령석 40개, 영웅의 영혼석 150개, 영혼이 봉인된 호리병 4개'),
     classTypeName: '전설장수',
-    childMercenaries: [121].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+    childMercenaries: [
+      ...[121].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+      ...[128, 119, 118].map(id => MODIFIED_MERCENARIES[id]).filter(Boolean),
+    ],
   },
   {
     id: 151,
@@ -371,7 +475,10 @@ export const MERCENARIES: Mercenary[] = [
     countryName: '일본',
     items: parseCraftingMaterials('불의속성석 20개, 정기의구슬(火) 20개, 불의정령석 20개, 영웅의 영혼석 100개, 영혼이 봉인된 호리병 4개'),
     classTypeName: '전설장수',
-    childMercenaries: [130].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+    childMercenaries: [
+      ...[130].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+      ...[124, 119].map(id => MODIFIED_MERCENARIES[id]).filter(Boolean),
+    ],
   },
   {
     id: 149,
@@ -381,7 +488,10 @@ export const MERCENARIES: Mercenary[] = [
     countryName: '대만',
     items: parseCraftingMaterials('바람의속성석 20개, 바람의정령석 20개, 정기의구슬(風) 20개, 영웅의 영혼석 100개, 영혼이 봉인된 호리병 4개'),
     classTypeName: '전설장수',
-    childMercenaries: [121].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+    childMercenaries: [
+      ...[121].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+      ...[134, 129].map(id => MODIFIED_MERCENARIES[id]).filter(Boolean),
+    ],
   },
   {
     id: 148,
@@ -391,7 +501,10 @@ export const MERCENARIES: Mercenary[] = [
     countryName: '중국',
     items: parseCraftingMaterials('물의속성석 20개, 정기의구슬(水) 20개, 물의정령석 20개, 영웅의 영혼석 100개, 영혼이 봉인된 호리병 4개'),
     classTypeName: '전설장수',
-    childMercenaries: [125].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+    childMercenaries: [
+      ...[125].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+      ...[133, 118].map(id => MODIFIED_MERCENARIES[id]).filter(Boolean),
+    ],
   },
   {
     id: 147,
@@ -401,11 +514,26 @@ export const MERCENARIES: Mercenary[] = [
     countryName: '조선',
     items: parseCraftingMaterials('뇌전의속성석 20개, 정기의구슬(雷) 20개, 뇌전의정령석 20개, 영웅의 영혼석 100개, 영혼이 봉인된 호리병 4개'),
     classTypeName: '전설장수',
-    childMercenaries: [135].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+    childMercenaries: [
+      ...[135].map(id => AWAKENED_MERCENARIES[id]).filter(Boolean),
+      ...[128, 123].map(id => MODIFIED_MERCENARIES[id]).filter(Boolean),
+    ],
   },
 ];
 
-// 모든 고유 아이템 목록 추출
+// 개조장수 재료 목록 (육의전에서 구매 불가 - 가격 조회 제외)
+const MODIFIED_MERCENARY_ITEMS = new Set([
+  '변이된 용의 보주',
+  '연발 총신',
+  '봉인부적',
+  '노획한 포탄',
+  '불타는깃털',
+  '거대 화룡의 머리뼈',
+  '진은조각',
+  '신기전의화살',
+]);
+
+// 모든 고유 아이템 목록 추출 (개조장수 재료 제외)
 export function getAllUniqueItems(): string[] {
   const itemSet = new Set<string>();
 
@@ -414,15 +542,22 @@ export function getAllUniqueItems(): string[] {
     merc.items.forEach(item => {
       itemSet.add(item.name);
     });
-    // 각성장수 재료
+    // 하위 용병 재료 (각성장수만 - 개조장수 재료는 제외)
     merc.childMercenaries.forEach(child => {
-      child.items.forEach(item => {
-        itemSet.add(item.name);
-      });
+      if (child.classTypeName !== '개조장수') {
+        child.items.forEach(item => {
+          itemSet.add(item.name);
+        });
+      }
     });
   });
 
   return Array.from(itemSet);
+}
+
+// 개조장수 재료인지 확인
+export function isModifiedMercenaryItem(itemName: string): boolean {
+  return MODIFIED_MERCENARY_ITEMS.has(itemName);
 }
 
 // 전설장수의 전체 재료 비용 계산 (하위 용병 포함)
