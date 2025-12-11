@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 import { PriceInfo } from './items';
 
 // 가격 히스토리 데이터 구조
@@ -23,14 +23,33 @@ export interface PriceHistoryFile {
 const HISTORY_KEY = 'price-history';
 const MAX_ENTRIES = 168; // 7일 × 24시간
 
-// KV 사용 가능 여부 확인
+// Redis 클라이언트 초기화 (lazy initialization)
+let redis: Redis | null = null;
+
+function getRedis(): Redis | null {
+  if (!process.env.UPSTASH_REDIS_KV_REST_API_URL || !process.env.UPSTASH_REDIS_KV_REST_API_TOKEN) {
+    return null;
+  }
+
+  if (!redis) {
+    redis = new Redis({
+      url: process.env.UPSTASH_REDIS_KV_REST_API_URL,
+      token: process.env.UPSTASH_REDIS_KV_REST_API_TOKEN,
+    });
+  }
+
+  return redis;
+}
+
+// Redis 사용 가능 여부 확인
 function isKVAvailable(): boolean {
-  return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+  return !!(process.env.UPSTASH_REDIS_KV_REST_API_URL && process.env.UPSTASH_REDIS_KV_REST_API_TOKEN);
 }
 
 // 히스토리 읽기
 export async function readPriceHistory(): Promise<PriceHistoryFile> {
-  if (!isKVAvailable()) {
+  const redisClient = getRedis();
+  if (!redisClient) {
     return {
       lastUpdated: new Date().toISOString(),
       entries: [],
@@ -38,13 +57,13 @@ export async function readPriceHistory(): Promise<PriceHistoryFile> {
   }
 
   try {
-    const history = await kv.get<PriceHistoryFile>(HISTORY_KEY);
+    const history = await redisClient.get<PriceHistoryFile>(HISTORY_KEY);
     return history || {
       lastUpdated: new Date().toISOString(),
       entries: [],
     };
   } catch (error) {
-    console.error('KV 읽기 오류:', error);
+    console.error('Redis 읽기 오류:', error);
     return {
       lastUpdated: new Date().toISOString(),
       entries: [],
@@ -54,13 +73,14 @@ export async function readPriceHistory(): Promise<PriceHistoryFile> {
 
 // 히스토리 저장
 async function writePriceHistory(history: PriceHistoryFile): Promise<boolean> {
-  if (!isKVAvailable()) return false;
+  const redisClient = getRedis();
+  if (!redisClient) return false;
 
   try {
-    await kv.set(HISTORY_KEY, history);
+    await redisClient.set(HISTORY_KEY, history);
     return true;
   } catch (error) {
-    console.error('KV 저장 오류:', error);
+    console.error('Redis 저장 오류:', error);
     return false;
   }
 }
