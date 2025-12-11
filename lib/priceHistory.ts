@@ -6,6 +6,7 @@ export interface PriceHistoryEntry {
   timestamp: string;       // ISO 형식: 2025-12-10T16:30:00.000Z
   date: string;           // YYYY-MM-DD
   hour: number;           // 0-23
+  minuteSlot: number;     // 5분 단위 슬롯 (0, 5, 10, 15, ..., 55)
   prices: Record<string, {
     minPrice: number;
     maxPrice: number;
@@ -22,7 +23,7 @@ export interface PriceHistoryFile {
 
 // KV 키 상수
 const HISTORY_KEY = 'price-history';
-const MAX_ENTRIES = 168; // 7일 × 24시간
+const MAX_ENTRIES = 2016; // 7일 × 24시간 × 12 (5분 단위)
 
 // Redis 클라이언트 초기화 (lazy initialization)
 let redis: Redis | null = null;
@@ -97,18 +98,20 @@ export async function savePriceHistory(prices: Record<string, PriceInfo>): Promi
   const timestamp = now.toISOString();
   const date = timestamp.split('T')[0];
   const hour = now.getHours();
+  const minuteSlot = Math.floor(now.getMinutes() / 5) * 5; // 5분 단위 슬롯
 
   const history = await readPriceHistory();
 
-  // 같은 날짜, 같은 시간대에 이미 데이터가 있는지 확인
+  // 같은 날짜, 같은 시간, 같은 5분 슬롯에 이미 데이터가 있는지 확인
   const existingIndex = history.entries.findIndex(
-    entry => entry.date === date && entry.hour === hour
+    entry => entry.date === date && entry.hour === hour && entry.minuteSlot === minuteSlot
   );
 
   const entry: PriceHistoryEntry = {
     timestamp,
     date,
     hour,
+    minuteSlot,
     prices: {},
   };
 
@@ -133,7 +136,7 @@ export async function savePriceHistory(prices: Record<string, PriceInfo>): Promi
     history.entries.push(entry);
   }
 
-  // 최근 168개 (7일) 데이터만 유지
+  // 최근 2016개 (7일 × 24시간 × 12슬롯) 데이터만 유지
   if (history.entries.length > MAX_ENTRIES) {
     history.entries = history.entries.slice(-MAX_ENTRIES);
   }
@@ -154,6 +157,7 @@ export async function getItemPriceHistory(itemName: string): Promise<{
   timestamp: string;
   date: string;
   hour: number;
+  minuteSlot: number;
   minPrice: number;
   maxPrice: number;
   avgPrice: number;
@@ -167,6 +171,7 @@ export async function getItemPriceHistory(itemName: string): Promise<{
       timestamp: entry.timestamp,
       date: entry.date,
       hour: entry.hour,
+      minuteSlot: entry.minuteSlot || 0,
       ...entry.prices[itemName],
     }));
 }

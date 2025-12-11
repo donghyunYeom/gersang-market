@@ -48,13 +48,13 @@ export default function Home() {
     fetchPrices();
   }, [fetchPrices]);
 
-  // 자동 새로고침 (10분)
+  // 자동 새로고침 (5분)
   useEffect(() => {
     if (!autoRefresh) return;
 
     const interval = setInterval(() => {
       fetchPrices();
-    }, 600000);
+    }, 300000);
 
     return () => clearInterval(interval);
   }, [autoRefresh, fetchPrices]);
