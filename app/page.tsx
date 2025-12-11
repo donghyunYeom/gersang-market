@@ -5,12 +5,25 @@ import { MERCENARIES, PriceInfo } from '@/lib/items';
 import MercenaryCard from '@/components/MercenaryCard';
 import RefreshButton from '@/components/RefreshButton';
 import TotalSummary from '@/components/TotalSummary';
+import TabNavigation from '@/components/TabNavigation';
+import MaterialsTab from '@/components/MaterialsTab';
 
 interface ApiResponse {
   success: boolean;
   data: Record<string, PriceInfo>;
   timestamp: string;
   serverName: string;
+}
+
+interface PriceHistoryData {
+  timestamp: string;
+  date: string;
+  hour: number;
+  minuteSlot: number;
+  minPrice: number;
+  maxPrice: number;
+  avgPrice: number;
+  quantity: number;
 }
 
 export default function Home() {
@@ -20,6 +33,8 @@ export default function Home() {
   const [error, setError] = useState<string>();
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [activeTab, setActiveTab] = useState<'mercenaries' | 'materials'>('mercenaries');
+  const [priceHistory, setPriceHistory] = useState<Record<string, PriceHistoryData[]>>({});
 
   const fetchPrices = useCallback(async () => {
     setIsLoading(true);
@@ -40,6 +55,22 @@ export default function Home() {
       setError('서버 연결에 실패했습니다.');
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  // 가격 히스토리 조회
+  const fetchPriceHistory = useCallback(async (itemName: string) => {
+    try {
+      const response = await fetch(`/api/history?itemName=${encodeURIComponent(itemName)}`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        setPriceHistory(prev => ({
+          ...prev,
+          [itemName]: data.data,
+        }));
+      }
+    } catch (err) {
+      console.error('히스토리 조회 오류:', err);
     }
   }, []);
 
@@ -125,6 +156,9 @@ export default function Home() {
 
       {/* 콘텐츠 */}
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        {/* 탭 네비게이션 */}
+        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
         {/* 에러 메시지 */}
         {error && (
           <div className="bg-[#ef4444]/10 border border-[#ef4444]/30 rounded-lg p-4 text-[#ef4444]">
@@ -141,43 +175,57 @@ export default function Home() {
           </div>
         )}
 
-        {/* 총 비용 요약 */}
-        <TotalSummary prices={prices} isLoading={isLoading} />
+        {/* 전설장수 탭 */}
+        {activeTab === 'mercenaries' && (
+          <>
+            {/* 총 비용 요약 */}
+            <TotalSummary prices={prices} isLoading={isLoading} />
 
-        {/* 전체 펼치기/접기 */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">
-            전설장수 목록 ({MERCENARIES.length})
-          </h2>
-          <div className="flex gap-2">
-            <button
-              onClick={expandAll}
-              className="text-sm text-[#737373] hover:text-white transition-colors px-3 py-1 rounded hover:bg-[#252525]"
-            >
-              전체 펼치기
-            </button>
-            <button
-              onClick={collapseAll}
-              className="text-sm text-[#737373] hover:text-white transition-colors px-3 py-1 rounded hover:bg-[#252525]"
-            >
-              전체 접기
-            </button>
-          </div>
-        </div>
+            {/* 전체 펼치기/접기 */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">
+                전설장수 목록 ({MERCENARIES.length})
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={expandAll}
+                  className="text-sm text-[#737373] hover:text-white transition-colors px-3 py-1 rounded hover:bg-[#252525]"
+                >
+                  전체 펼치기
+                </button>
+                <button
+                  onClick={collapseAll}
+                  className="text-sm text-[#737373] hover:text-white transition-colors px-3 py-1 rounded hover:bg-[#252525]"
+                >
+                  전체 접기
+                </button>
+              </div>
+            </div>
 
-        {/* 용병 카드 목록 */}
-        <div className="space-y-3">
-          {MERCENARIES.map(mercenary => (
-            <MercenaryCard
-              key={mercenary.id}
-              mercenary={mercenary}
-              prices={prices}
-              isLoading={isLoading}
-              isExpanded={expandedIds.has(mercenary.id)}
-              onToggle={() => toggleExpanded(mercenary.id)}
-            />
-          ))}
-        </div>
+            {/* 용병 카드 목록 */}
+            <div className="space-y-3">
+              {MERCENARIES.map(mercenary => (
+                <MercenaryCard
+                  key={mercenary.id}
+                  mercenary={mercenary}
+                  prices={prices}
+                  isLoading={isLoading}
+                  isExpanded={expandedIds.has(mercenary.id)}
+                  onToggle={() => toggleExpanded(mercenary.id)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 재료 시세 탭 */}
+        {activeTab === 'materials' && (
+          <MaterialsTab
+            prices={prices}
+            isLoading={isLoading}
+            priceHistory={[]}
+          />
+        )}
 
         {/* 푸터 */}
         <footer className="text-center py-8 text-[#737373] text-sm">
