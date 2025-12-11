@@ -1,5 +1,5 @@
 import { Redis } from '@upstash/redis';
-import { PriceInfo } from './items';
+import { PriceInfo, PriceListing } from './items';
 
 // 가격 히스토리 데이터 구조
 export interface PriceHistoryEntry {
@@ -11,6 +11,7 @@ export interface PriceHistoryEntry {
     maxPrice: number;
     avgPrice: number;
     quantity: number;
+    listings?: PriceListing[];  // 개별 매물 정보 (거래 추적용)
   }>;
 }
 
@@ -111,7 +112,7 @@ export async function savePriceHistory(prices: Record<string, PriceInfo>): Promi
     prices: {},
   };
 
-  // 가격 정보 추출 (필요한 필드만)
+  // 가격 정보 추출 (필요한 필드만 + listings)
   Object.entries(prices).forEach(([itemName, info]) => {
     if (info.minPrice > 0) {
       entry.prices[itemName] = {
@@ -119,6 +120,7 @@ export async function savePriceHistory(prices: Record<string, PriceInfo>): Promi
         maxPrice: info.maxPrice,
         avgPrice: info.avgPrice,
         quantity: info.quantity,
+        listings: info.listings || [],  // 개별 매물 정보 포함
       };
     }
   });
