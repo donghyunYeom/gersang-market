@@ -23,7 +23,7 @@ export interface PriceHistoryFile {
 
 // KV 키 상수
 const HISTORY_KEY = 'price-history';
-const MAX_ENTRIES = 2016; // 7일 × 24시간 × 12 (5분 단위)
+const MAX_ENTRIES = 8640; // 30일 × 24시간 × 12 (5분 단위)
 
 // Redis 클라이언트 초기화 (lazy initialization)
 let redis: Redis | null = null;
