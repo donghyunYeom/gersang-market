@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
-import { Mercenary, PriceInfo, formatPrice, formatNumber, getAttributeColor, calculateTotalCost } from '@/lib/items';
+import { Mercenary, PriceInfo, formatPrice, formatNumber, getAttributeColor, calculateTotalCost, getBottleRecipe, getOrbRecipe } from '@/lib/items';
 
 interface MercenaryCardProps {
   mercenary: Mercenary;
@@ -18,8 +19,11 @@ export default function MercenaryCard({
   isExpanded,
   onToggle,
 }: MercenaryCardProps) {
+  const [showBottleRecipe, setShowBottleRecipe] = useState(false);
+  const [showOrbRecipe, setShowOrbRecipe] = useState<string | null>(null);
   const costs = calculateTotalCost(mercenary, prices);
   const attrColor = getAttributeColor(mercenary.attributesName);
+  const bottleRecipe = getBottleRecipe();
 
   // 가격 정보가 있는 아이템 수
   const mainItemsWithPrice = mercenary.items.filter(
@@ -107,32 +111,155 @@ export default function MercenaryCard({
                   const priceInfo = prices[item.name];
                   const hasPrice = priceInfo && priceInfo.minPrice > 0;
                   const subtotal = hasPrice ? priceInfo.minPrice * item.quantity : 0;
+                  const isBottle = item.name === '영혼이 봉인된 호리병';
+                  const isOrb = item.name.startsWith('정기의구슬(');
+                  const orbRecipe = isOrb ? getOrbRecipe(item.name) : null;
 
                   return (
-                    <tr key={item.name} className="border-b border-[#1f1f1f] last:border-0">
-                      <td className="py-2 text-sm text-white">{item.name}</td>
-                      <td className="py-2 text-sm text-right text-[#f59e0b] tabular-nums">
-                        {formatNumber(item.quantity)}개
-                      </td>
-                      <td className="py-2 text-sm text-right tabular-nums">
-                        {isLoading ? (
-                          <span className="inline-block h-4 bg-[#333] rounded w-14 animate-pulse"></span>
-                        ) : hasPrice ? (
-                          <span className="text-[#22c55e]">{formatPrice(priceInfo.minPrice)}</span>
-                        ) : (
-                          <span className="text-[#ef4444]">-</span>
-                        )}
-                      </td>
-                      <td className="py-2 text-sm text-right font-medium tabular-nums">
-                        {isLoading ? (
-                          <span className="inline-block h-4 bg-[#333] rounded w-16 animate-pulse"></span>
-                        ) : hasPrice ? (
-                          <span className="text-white">{formatPrice(subtotal)}</span>
-                        ) : (
-                          <span className="text-[#737373]">-</span>
-                        )}
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={item.name} className="border-b border-[#1f1f1f] last:border-0">
+                        <td className="py-2 text-sm text-white">
+                          {isBottle && bottleRecipe ? (
+                            <button
+                              onClick={() => setShowBottleRecipe(!showBottleRecipe)}
+                              className="flex items-center gap-1 hover:text-[#f59e0b] transition-colors"
+                            >
+                              <svg
+                                className={`w-3 h-3 transition-transform ${showBottleRecipe ? 'rotate-90' : ''}`}
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                              </svg>
+                              {item.name}
+                            </button>
+                          ) : isOrb && orbRecipe ? (
+                            <button
+                              onClick={() => setShowOrbRecipe(showOrbRecipe === item.name ? null : item.name)}
+                              className="flex items-center gap-1 hover:text-[#f59e0b] transition-colors"
+                            >
+                              <svg
+                                className={`w-3 h-3 transition-transform ${showOrbRecipe === item.name ? 'rotate-90' : ''}`}
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                              </svg>
+                              {item.name}
+                            </button>
+                          ) : (
+                            item.name
+                          )}
+                        </td>
+                        <td className="py-2 text-sm text-right text-[#f59e0b] tabular-nums">
+                          {formatNumber(item.quantity)}개
+                        </td>
+                        <td className="py-2 text-sm text-right tabular-nums">
+                          {isLoading ? (
+                            <span className="inline-block h-4 bg-[#333] rounded w-14 animate-pulse"></span>
+                          ) : hasPrice ? (
+                            <span className="text-[#22c55e]">{formatPrice(priceInfo.minPrice)}</span>
+                          ) : (
+                            <span className="text-[#ef4444]">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 text-sm text-right font-medium tabular-nums">
+                          {isLoading ? (
+                            <span className="inline-block h-4 bg-[#333] rounded w-16 animate-pulse"></span>
+                          ) : hasPrice ? (
+                            <span className="text-white">{formatPrice(subtotal)}</span>
+                          ) : (
+                            <span className="text-[#737373]">-</span>
+                          )}
+                        </td>
+                      </tr>
+                      {/* 호리병 제작 하위 재료 */}
+                      {isBottle && showBottleRecipe && bottleRecipe && (
+                        <tr key={`${item.name}-recipe`}>
+                          <td colSpan={4} className="py-0">
+                            <div className="bg-[#0f0f0f] rounded-lg p-3 my-2 ml-4 border-l-2 border-[#a855f7]">
+                              <div className="text-xs text-[#a855f7] font-medium mb-2 flex items-center gap-2">
+                                <span>🏺</span>
+                                호리병 {item.quantity}개 제작 재료 (조선/일본/대만/중국 각 1개)
+                              </div>
+                              <div className="space-y-1">
+                                {bottleRecipe.items.map(subItem => {
+                                  const subPriceInfo = prices[subItem.name];
+                                  const subHasPrice = subPriceInfo && subPriceInfo.minPrice > 0;
+                                  const subSubtotal = subHasPrice ? subPriceInfo.minPrice * subItem.quantity : 0;
+                                  // 선조석은 각 20개씩, 철괴리/봉인의서는 20×4, 1×4 형식으로 표시
+                                  const isSeonjo = subItem.name.includes('선조의영혼석');
+                                  const perBottle = isSeonjo ? subItem.quantity : (subItem.name === '봉인의서' ? 1 : 20);
+                                  return (
+                                    <div key={subItem.name} className="flex items-center justify-between text-xs">
+                                      <span className="text-[#a3a3a3]">{subItem.name}</span>
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-[#737373]">
+                                          {isSeonjo ? (
+                                            <span className="text-[#a855f7]">{formatNumber(subItem.quantity)}개</span>
+                                          ) : (
+                                            <>
+                                              {perBottle}개 × {item.quantity} = <span className="text-[#a855f7]">{formatNumber(subItem.quantity)}개</span>
+                                            </>
+                                          )}
+                                        </span>
+                                        {subHasPrice && (
+                                          <span className="text-[#22c55e] tabular-nums">
+                                            {formatPrice(subSubtotal)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-[#252525] text-xs text-[#737373]">
+                                제작비: 3천만 × {item.quantity}개 = <span className="text-[#f59e0b]">{formatPrice(bottleRecipe.craftingFee)}</span>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {/* 정기의구슬 제작 하위 재료 */}
+                      {isOrb && showOrbRecipe === item.name && orbRecipe && (
+                        <tr key={`${item.name}-recipe`}>
+                          <td colSpan={4} className="py-0">
+                            <div className="bg-[#0f0f0f] rounded-lg p-3 my-2 ml-4 border-l-2 border-[#eab308]">
+                              <div className="text-xs text-[#eab308] font-medium mb-2 flex items-center gap-2">
+                                <span>🔮</span>
+                                {item.name} {item.quantity}개 제작 재료 (장과로 NPC)
+                              </div>
+                              <div className="space-y-1">
+                                {orbRecipe.items.map(subItem => {
+                                  const subPriceInfo = prices[subItem.name];
+                                  const subHasPrice = subPriceInfo && subPriceInfo.minPrice > 0;
+                                  const totalQty = subItem.quantity * item.quantity;
+                                  const subSubtotal = subHasPrice ? subPriceInfo.minPrice * totalQty : 0;
+                                  return (
+                                    <div key={subItem.name} className="flex items-center justify-between text-xs">
+                                      <span className="text-[#a3a3a3]">{subItem.name}</span>
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-[#737373]">
+                                          {subItem.quantity}개 × {item.quantity} = <span className="text-[#eab308]">{formatNumber(totalQty)}개</span>
+                                        </span>
+                                        {subHasPrice && (
+                                          <span className="text-[#22c55e] tabular-nums">
+                                            {formatPrice(subSubtotal)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-[#252525] text-xs text-[#737373]">
+                                제작비: 2백만 × {item.quantity}개 = <span className="text-[#f59e0b]">{formatPrice(orbRecipe.craftingFee * item.quantity)}</span>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   );
                 })}
               </tbody>

@@ -533,6 +533,105 @@ const MODIFIED_MERCENARY_ITEMS = new Set([
   '신기전의화살',
 ]);
 
+// 호리병 제작 재료 인터페이스
+export interface BottleRecipe {
+  name: string;
+  items: ItemRequirement[];
+  craftingFee: number;
+}
+
+// 호리병 4개 제작 데이터 (조선/일본/대만/중국 각 1개씩)
+// 호리병 1개당: 해당국가 선조석 20개 + 철괴리호리병 20개 + 봉인의서 1개
+export const BOTTLE_RECIPE: BottleRecipe = {
+  name: '영혼이 봉인된 호리병',
+  items: [
+    { name: '조선 선조의영혼석', quantity: 20 },  // 호리병 1개
+    { name: '일본 선조의영혼석', quantity: 20 },  // 호리병 1개
+    { name: '대만 선조의영혼석', quantity: 20 },  // 호리병 1개
+    { name: '중국 선조의영혼석', quantity: 20 },  // 호리병 1개
+    { name: '철괴리호리병', quantity: 80 },       // 20개 × 4
+    { name: '봉인의서', quantity: 4 },            // 1개 × 4
+  ],
+  craftingFee: 120000000, // 3천만원 × 4개
+};
+
+// 호리병 제작 재료 가져오기
+export function getBottleRecipe(): BottleRecipe {
+  return BOTTLE_RECIPE;
+}
+
+// 정기의구슬 제작 재료 인터페이스
+export interface OrbRecipe {
+  name: string;
+  attribute: string;
+  items: ItemRequirement[];
+  craftingFee: number;
+}
+
+// 정기의구슬 5종 제작 데이터 (장과로 NPC 제작)
+export const ORB_RECIPES: Record<string, OrbRecipe> = {
+  '정기의구슬(火)': {
+    name: '정기의구슬(火)',
+    attribute: '火',
+    items: [
+      { name: '정기의구슬조각(火)', quantity: 10 },
+      { name: '작은불의속성석', quantity: 5 },
+      { name: '화염석', quantity: 2 },
+      { name: '오색가루', quantity: 2 },
+    ],
+    craftingFee: 2000000, // 2백만냥
+  },
+  '정기의구슬(水)': {
+    name: '정기의구슬(水)',
+    attribute: '水',
+    items: [
+      { name: '정기의구슬조각(水)', quantity: 10 },
+      { name: '작은물의속성석', quantity: 5 },
+      { name: '결빙석', quantity: 2 },
+      { name: '오색가루', quantity: 2 },
+    ],
+    craftingFee: 2000000,
+  },
+  '정기의구슬(風)': {
+    name: '정기의구슬(風)',
+    attribute: '風',
+    items: [
+      { name: '정기의구슬조각(風)', quantity: 10 },
+      { name: '작은바람의속성석', quantity: 5 },
+      { name: '단풍석', quantity: 2 },
+      { name: '오색가루', quantity: 2 },
+    ],
+    craftingFee: 2000000,
+  },
+  '정기의구슬(雷)': {
+    name: '정기의구슬(雷)',
+    attribute: '雷',
+    items: [
+      { name: '정기의구슬조각(雷)', quantity: 10 },
+      { name: '작은뇌전의속성석', quantity: 5 },
+      { name: '뇌정석', quantity: 2 },
+      { name: '오색가루', quantity: 2 },
+    ],
+    craftingFee: 2000000,
+  },
+  '정기의구슬(地)': {
+    name: '정기의구슬(地)',
+    attribute: '地',
+    items: [
+      { name: '정기의구슬조각(地)', quantity: 10 },
+      { name: '작은땅의속성석', quantity: 5 },
+      { name: '땅의정령석', quantity: 2 },
+      { name: '오색가루', quantity: 2 },
+    ],
+    craftingFee: 2000000,
+  },
+};
+
+// 정기의구슬 제작 레시피 가져오기
+export function getOrbRecipe(orbName: string): OrbRecipe | null {
+  return ORB_RECIPES[orbName] || null;
+}
+
 // 모든 고유 아이템 목록 추출 (개조장수 재료 제외)
 export function getAllUniqueItems(): string[] {
   const itemSet = new Set<string>();
@@ -549,6 +648,18 @@ export function getAllUniqueItems(): string[] {
           itemSet.add(item.name);
         });
       }
+    });
+  });
+
+  // 호리병 제작 재료 추가
+  BOTTLE_RECIPE.items.forEach(item => {
+    itemSet.add(item.name);
+  });
+
+  // 정기의구슬 제작 재료 추가
+  Object.values(ORB_RECIPES).forEach(recipe => {
+    recipe.items.forEach(item => {
+      itemSet.add(item.name);
     });
   });
 

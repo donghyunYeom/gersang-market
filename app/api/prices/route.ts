@@ -5,6 +5,21 @@ import { savePriceHistory } from '@/lib/priceHistory';
 const SERVER_ID = 5; // 봉황서버
 const BASE_URL = 'https://geota.co.kr/gersang/yukeuijeon';
 
+// 한자 변환 매핑 (일반 한자 → CJK 호환 한자)
+// geota.co.kr에서는 호환 한자 영역(U+F900-U+FAFF)의 문자를 사용
+const CHAR_MAPPING: Record<string, string> = {
+  '雷': '\uF949',  // U+96F7 → U+F949 (뇌전)
+};
+
+// API 호출용 아이템명 변환 함수
+function convertItemNameForApi(itemName: string): string {
+  let converted = itemName;
+  for (const [from, to] of Object.entries(CHAR_MAPPING)) {
+    converted = converted.replaceAll(from, to);
+  }
+  return converted;
+}
+
 interface GeotaItem {
   itemName: string;
   price: number;
@@ -52,7 +67,9 @@ function extractDataFromRSC(html: string): GeotaItem[] {
 // 단일 아이템 가격 조회
 async function fetchItemPrice(itemName: string): Promise<PriceInfo | null> {
   try {
-    const url = `${BASE_URL}?serverId=${SERVER_ID}&itemName=${encodeURIComponent(itemName)}`;
+    // API 호출용 아이템명 변환 (한자 호환 문자 처리)
+    const apiItemName = convertItemNameForApi(itemName);
+    const url = `${BASE_URL}?serverId=${SERVER_ID}&itemName=${encodeURIComponent(apiItemName)}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -73,8 +90,9 @@ async function fetchItemPrice(itemName: string): Promise<PriceInfo | null> {
     const items = extractDataFromRSC(html);
 
     // 검색어와 정확히 일치하는 아이템만 필터링
+    // 응답의 itemName도 호환 한자를 사용하므로 변환된 이름으로 비교
     const matchedItems = items.filter(
-      item => item.itemName === itemName || item.itemName.includes(itemName)
+      item => item.itemName === apiItemName || item.itemName.includes(apiItemName)
     );
 
     if (matchedItems.length === 0) {

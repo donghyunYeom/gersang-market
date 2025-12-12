@@ -26,9 +26,42 @@ interface PriceHistoryData {
   quantity: number;
 }
 
+// 캐시 관련 상수 및 유틸리티
+const CACHE_KEY = 'gersang-prices-cache';
+
+interface CachedData {
+  prices: Record<string, PriceInfo>;
+  timestamp: string;
+}
+
+function loadCachedPrices(): CachedData | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (err) {
+    console.error('캐시 로드 오류:', err);
+  }
+  return null;
+}
+
+function savePricesToCache(prices: Record<string, PriceInfo>, timestamp: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const data: CachedData = { prices, timestamp };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+  } catch (err) {
+    console.error('캐시 저장 오류:', err);
+  }
+}
+
 export default function Home() {
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // 캐시 로드 후 결정
+  const [isRefreshing, setIsRefreshing] = useState(false); // 백그라운드 새로고침 중
+  const [isInitializing, setIsInitializing] = useState(true); // 초기화 중
   const [lastUpdated, setLastUpdated] = useState<string>();
   const [error, setError] = useState<string>();
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -36,8 +69,12 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'mercenaries' | 'materials'>('mercenaries');
   const [priceHistory, setPriceHistory] = useState<Record<string, PriceHistoryData[]>>({});
 
-  const fetchPrices = useCallback(async () => {
-    setIsLoading(true);
+  const fetchPrices = useCallback(async (isBackgroundRefresh = false) => {
+    if (isBackgroundRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     setError(undefined);
 
     try {
@@ -47,6 +84,8 @@ export default function Home() {
       if (data.success) {
         setPrices(data.data);
         setLastUpdated(data.timestamp);
+        // 캐시에 저장
+        savePricesToCache(data.data, data.timestamp);
       } else {
         setError('가격 정보를 불러오는데 실패했습니다.');
       }
@@ -55,6 +94,7 @@ export default function Home() {
       setError('서버 연결에 실패했습니다.');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -74,17 +114,83 @@ export default function Home() {
     }
   }, []);
 
-  // 초기 로드
+  // 초기 로드: 서버 캐시 먼저 표시 후 실시간 데이터로 업데이트
   useEffect(() => {
-    fetchPrices();
-  }, [fetchPrices]);
+    const initializeData = async () => {
+      // 1단계: 서버에 저장된 최신 데이터를 빠르게 불러오기
+      try {
+        const cachedResponse = await fetch('/api/prices/cached');
+        const cachedData: ApiResponse = await cachedResponse.json();
 
-  // 자동 새로고침 (5분)
+        if (cachedData.success && Object.keys(cachedData.data).length > 0) {
+          // 서버 캐시 데이터가 있으면 먼저 표시
+          setPrices(cachedData.data);
+          setLastUpdated(cachedData.timestamp);
+          setIsInitializing(false);
+
+          // 2단계: 백그라운드에서 실시간 데이터 조회
+          setIsRefreshing(true);
+          try {
+            const response = await fetch('/api/prices');
+            const data: ApiResponse = await response.json();
+            if (data.success) {
+              setPrices(data.data);
+              setLastUpdated(data.timestamp);
+              savePricesToCache(data.data, data.timestamp);
+            }
+          } catch (err) {
+            console.error('실시간 조회 오류:', err);
+          } finally {
+            setIsRefreshing(false);
+          }
+        } else {
+          // 서버 캐시가 없으면 실시간 조회
+          setIsLoading(true);
+          setIsInitializing(false);
+          const response = await fetch('/api/prices');
+          const data: ApiResponse = await response.json();
+          if (data.success) {
+            setPrices(data.data);
+            setLastUpdated(data.timestamp);
+            savePricesToCache(data.data, data.timestamp);
+          } else {
+            setError('가격 정보를 불러오는데 실패했습니다.');
+          }
+          setIsLoading(false);
+        }
+      } catch (err) {
+        // 서버 캐시 조회 실패 시 실시간 조회
+        console.error('캐시 조회 오류:', err);
+        setIsLoading(true);
+        setIsInitializing(false);
+        try {
+          const response = await fetch('/api/prices');
+          const data: ApiResponse = await response.json();
+          if (data.success) {
+            setPrices(data.data);
+            setLastUpdated(data.timestamp);
+            savePricesToCache(data.data, data.timestamp);
+          } else {
+            setError('가격 정보를 불러오는데 실패했습니다.');
+          }
+        } catch (fetchErr) {
+          console.error('가격 조회 오류:', fetchErr);
+          setError('서버 연결에 실패했습니다.');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeData();
+  }, []);
+
+  // 자동 새로고침 (5분) - 백그라운드로 실행
   useEffect(() => {
     if (!autoRefresh) return;
 
     const interval = setInterval(() => {
-      fetchPrices();
+      fetchPrices(true);
     }, 300000);
 
     return () => clearInterval(interval);
@@ -145,8 +251,9 @@ export default function Home() {
               </label>
 
               <RefreshButton
-                onClick={fetchPrices}
-                isLoading={isLoading}
+                onClick={() => fetchPrices(false)}
+                isLoading={isLoading || isInitializing}
+                isRefreshing={isRefreshing}
                 lastUpdated={lastUpdated}
               />
             </div>
@@ -179,7 +286,7 @@ export default function Home() {
         {activeTab === 'mercenaries' && (
           <>
             {/* 총 비용 요약 */}
-            <TotalSummary prices={prices} isLoading={isLoading} />
+            <TotalSummary prices={prices} isLoading={isLoading || isInitializing} />
 
             {/* 전체 펼치기/접기 */}
             <div className="flex items-center justify-between">
@@ -209,7 +316,7 @@ export default function Home() {
                   key={mercenary.id}
                   mercenary={mercenary}
                   prices={prices}
-                  isLoading={isLoading}
+                  isLoading={isLoading || isInitializing}
                   isExpanded={expandedIds.has(mercenary.id)}
                   onToggle={() => toggleExpanded(mercenary.id)}
                 />
@@ -222,7 +329,7 @@ export default function Home() {
         {activeTab === 'materials' && (
           <MaterialsTab
             prices={prices}
-            isLoading={isLoading}
+            isLoading={isLoading || isInitializing}
             priceHistory={[]}
           />
         )}
