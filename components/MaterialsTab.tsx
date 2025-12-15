@@ -23,7 +23,7 @@ type PeriodType = '24h' | '7d' | '30d';
 
 export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMaterial, setSelectedMaterial] = useState<string | null>(null);
+  const [expandedMaterial, setExpandedMaterial] = useState<string | null>(null);
   const [materialHistory, setMaterialHistory] = useState<Record<string, PriceHistoryData[]>>({});
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('7d');
@@ -60,12 +60,12 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
     }
   }, [materialHistory]);
 
-  // 재료 선택 시 히스토리 조회
+  // 재료 펼침 시 히스토리 조회
   useEffect(() => {
-    if (selectedMaterial) {
-      fetchItemHistory(selectedMaterial);
+    if (expandedMaterial) {
+      fetchItemHistory(expandedMaterial);
     }
-  }, [selectedMaterial, fetchItemHistory]);
+  }, [expandedMaterial, fetchItemHistory]);
 
   // 기간별 히스토리 필터링
   const getFilteredHistory = useCallback((history: PriceHistoryData[], period: PeriodType) => {
@@ -121,11 +121,15 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
     };
   }, [materialHistory]);
 
-  // 선택된 재료의 기간별 히스토리
-  const selectedMaterialHistory = useMemo(() => {
-    if (!selectedMaterial || !materialHistory[selectedMaterial]) return [];
-    return getFilteredHistory(materialHistory[selectedMaterial], selectedPeriod);
-  }, [selectedMaterial, materialHistory, selectedPeriod, getFilteredHistory]);
+  // 토글 핸들러
+  const toggleMaterial = (materialName: string) => {
+    if (expandedMaterial === materialName) {
+      setExpandedMaterial(null);
+    } else {
+      setExpandedMaterial(materialName);
+      setSelectedPeriod('7d'); // 기본 기간 리셋
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -138,7 +142,7 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
             value={searchQuery}
             onChange={e => {
               setSearchQuery(e.target.value);
-              setSelectedMaterial(null);
+              setExpandedMaterial(null);
             }}
             className="w-full bg-[#0a0a0a] border border-[#333] rounded-lg px-4 py-3 pl-10 text-white placeholder-[#737373] focus:outline-none focus:border-[#f59e0b] transition-colors"
           />
@@ -165,148 +169,6 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
         )}
       </div>
 
-      {/* 선택된 재료 상세 정보 */}
-      {selectedMaterial && (
-        <div className="bg-[#1a1a1a] rounded-xl p-4 border border-[#f59e0b]">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-white">{selectedMaterial}</h3>
-            <button
-              onClick={() => setSelectedMaterial(null)}
-              className="text-[#737373] hover:text-white"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* 역대 최고/최저가 */}
-          {materialHistory[selectedMaterial] && materialHistory[selectedMaterial].length > 0 && (
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {(() => {
-                const stats = getHistoricalStats(selectedMaterial);
-                return (
-                  <>
-                    <div className="bg-[#0a0a0a] rounded-lg p-3">
-                      <div className="text-xs text-[#737373] mb-1">역대 최고가</div>
-                      <div className="text-lg font-bold text-[#ef4444]">
-                        {formatPrice(stats.historicalHigh)}
-                      </div>
-                      <div className="text-xs text-[#737373]">
-                        ({formatNumber(stats.historicalHighQty)}개 거래)
-                      </div>
-                    </div>
-                    <div className="bg-[#0a0a0a] rounded-lg p-3">
-                      <div className="text-xs text-[#737373] mb-1">역대 최저가</div>
-                      <div className="text-lg font-bold text-[#22c55e]">
-                        {formatPrice(stats.historicalLow)}
-                      </div>
-                      <div className="text-xs text-[#737373]">
-                        ({formatNumber(stats.historicalLowQty)}개 거래)
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          )}
-
-          {/* 기간 선택 */}
-          <div className="flex gap-2 mb-3">
-            {(['24h', '7d', '30d'] as PeriodType[]).map(period => (
-              <button
-                key={period}
-                onClick={() => setSelectedPeriod(period)}
-                className={`px-3 py-1 rounded text-sm transition-colors ${
-                  selectedPeriod === period
-                    ? 'bg-[#f59e0b] text-black font-medium'
-                    : 'bg-[#252525] text-[#737373] hover:text-white'
-                }`}
-              >
-                {period === '24h' ? '24시간' : period === '7d' ? '7일' : '30일'}
-              </button>
-            ))}
-          </div>
-
-          {/* 가격 추이 차트 영역 */}
-          <div className="bg-[#0a0a0a] rounded-lg p-4 mb-4">
-            <h4 className="text-sm font-medium text-[#737373] mb-3">
-              가격 추이 ({selectedPeriod === '24h' ? '24시간' : selectedPeriod === '7d' ? '7일' : '30일'})
-            </h4>
-            {isLoadingHistory ? (
-              <div className="h-48 flex items-center justify-center">
-                <div className="flex items-center gap-2 text-[#737373]">
-                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>로딩 중...</span>
-                </div>
-              </div>
-            ) : selectedMaterialHistory.length > 0 ? (
-              <div className="h-48 flex items-end gap-1">
-                {selectedMaterialHistory.map((item, index) => {
-                  const maxPrice = Math.max(...selectedMaterialHistory.map(h => h.minPrice));
-                  const minPrice = Math.min(...selectedMaterialHistory.map(h => h.minPrice));
-                  const range = maxPrice - minPrice || 1;
-                  const height = ((item.minPrice - minPrice) / range) * 80 + 20; // 최소 20% 높이
-                  return (
-                    <div
-                      key={index}
-                      className="flex-1 bg-[#f59e0b] rounded-t opacity-70 hover:opacity-100 transition-opacity cursor-pointer relative group"
-                      style={{ height: `${height}%`, minHeight: '8px', maxWidth: '20px' }}
-                      title={`${item.date} ${item.hour}:${String(item.minuteSlot || 0).padStart(2, '0')}\n${formatPrice(item.minPrice)} (${formatNumber(item.quantity)}개)`}
-                    >
-                      {/* 툴팁 */}
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
-                        <div className="bg-[#333] rounded px-2 py-1 text-xs whitespace-nowrap">
-                          <div className="text-[#a3a3a3]">{item.date} {item.hour}:{String(item.minuteSlot || 0).padStart(2, '0')}</div>
-                          <div className="text-[#f59e0b] font-medium">{formatPrice(item.minPrice)}</div>
-                          <div className="text-[#737373]">{formatNumber(item.quantity)}개</div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-[#737373] text-sm text-center py-8">
-                해당 기간의 가격 데이터가 없습니다
-              </p>
-            )}
-
-            {/* 가격 범위 표시 */}
-            {selectedMaterialHistory.length > 0 && (
-              <div className="flex justify-between mt-2 text-xs text-[#737373]">
-                <span>최저 {formatPrice(Math.min(...selectedMaterialHistory.map(h => h.minPrice)))}</span>
-                <span>최고 {formatPrice(Math.max(...selectedMaterialHistory.map(h => h.minPrice)))}</span>
-              </div>
-            )}
-          </div>
-
-          {/* 현재 매물 목록 */}
-          {prices[selectedMaterial]?.listings && prices[selectedMaterial].listings.length > 0 && (
-            <div>
-              <h4 className="text-sm font-medium text-[#737373] mb-3">현재 매물</h4>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {prices[selectedMaterial].listings.slice(0, 20).map((listing, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between bg-[#0a0a0a] rounded-lg px-3 py-2"
-                  >
-                    <span className="text-sm text-[#a3a3a3]">{listing.sellerName}</span>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm text-[#737373]">{formatNumber(listing.quantity)}개</span>
-                      <span className="text-sm font-medium text-[#22c55e]">{formatPrice(listing.price)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* 재료 목록 */}
       <div>
         <h2 className="text-lg font-bold text-white mb-4">
@@ -316,22 +178,27 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
           {filteredMaterials.map(materialName => {
             const priceInfo = prices[materialName];
             const hasPrice = priceInfo && priceInfo.minPrice > 0;
+            const isExpanded = expandedMaterial === materialName;
             const history = materialHistory[materialName] || [];
             const stats = history.length > 0 ? getHistoricalStats(materialName) : null;
+            const filteredHistory = isExpanded && history.length > 0
+              ? getFilteredHistory(history, selectedPeriod)
+              : [];
 
             return (
               <div
                 key={materialName}
-                onClick={() => setSelectedMaterial(materialName)}
-                className={`bg-[#1a1a1a] rounded-xl p-4 border cursor-pointer transition-all ${
-                  selectedMaterial === materialName
-                    ? 'border-[#f59e0b]'
-                    : 'border-[#333] hover:border-[#444]'
+                className={`bg-[#1a1a1a] rounded-xl border overflow-hidden transition-all ${
+                  isExpanded ? 'border-[#f59e0b]' : 'border-[#333]'
                 }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* 헤더 - 클릭 가능 */}
+                <button
+                  onClick={() => toggleMaterial(materialName)}
+                  className="w-full p-4 flex items-center gap-4 hover:bg-[#252525] transition-colors text-left"
+                >
                   {/* 재료명 */}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-white">{materialName}</h3>
                     {stats && stats.historicalHigh > 0 && (
                       <div className="flex items-center gap-4 mt-1">
@@ -348,7 +215,7 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
                   </div>
 
                   {/* 현재 가격 */}
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     {isLoading ? (
                       <div className="h-6 bg-[#333] rounded w-24 animate-pulse"></div>
                     ) : hasPrice ? (
@@ -364,26 +231,145 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
                       <span className="text-[#737373]">매물 없음</span>
                     )}
                   </div>
-                </div>
 
-                {/* 매물 미리보기 */}
-                {hasPrice && priceInfo.listings && priceInfo.listings.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-[#252525]">
-                    <div className="flex flex-wrap gap-2">
-                      {priceInfo.listings.slice(0, 5).map((listing, index) => (
-                        <span
-                          key={index}
-                          className="text-xs bg-[#0a0a0a] px-2 py-1 rounded text-[#a3a3a3]"
+                  {/* 토글 아이콘 */}
+                  <svg
+                    className={`w-5 h-5 text-[#737373] transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* 펼쳐진 상세 정보 */}
+                {isExpanded && (
+                  <div className="border-t border-[#333] p-4 animate-fadeIn">
+                    {/* 역대 최고/최저가 */}
+                    {history.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="bg-[#0a0a0a] rounded-lg p-3">
+                          <div className="text-xs text-[#737373] mb-1">역대 최고가</div>
+                          <div className="text-lg font-bold text-[#ef4444]">
+                            {formatPrice(stats?.historicalHigh || 0)}
+                          </div>
+                          <div className="text-xs text-[#737373]">
+                            ({formatNumber(stats?.historicalHighQty || 0)}개 거래)
+                          </div>
+                        </div>
+                        <div className="bg-[#0a0a0a] rounded-lg p-3">
+                          <div className="text-xs text-[#737373] mb-1">역대 최저가</div>
+                          <div className="text-lg font-bold text-[#22c55e]">
+                            {formatPrice(stats?.historicalLow || 0)}
+                          </div>
+                          <div className="text-xs text-[#737373]">
+                            ({formatNumber(stats?.historicalLowQty || 0)}개 거래)
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 기간 선택 */}
+                    <div className="flex gap-2 mb-3">
+                      {(['24h', '7d', '30d'] as PeriodType[]).map(period => (
+                        <button
+                          key={period}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPeriod(period);
+                          }}
+                          className={`px-3 py-1 rounded text-sm transition-colors ${
+                            selectedPeriod === period
+                              ? 'bg-[#f59e0b] text-black font-medium'
+                              : 'bg-[#252525] text-[#737373] hover:text-white'
+                          }`}
                         >
-                          {listing.sellerName} · {formatPrice(listing.price)} · {listing.quantity}개
-                        </span>
+                          {period === '24h' ? '24시간' : period === '7d' ? '7일' : '30일'}
+                        </button>
                       ))}
-                      {priceInfo.listings.length > 5 && (
-                        <span className="text-xs text-[#737373]">
-                          +{priceInfo.listings.length - 5}개 더
-                        </span>
+                    </div>
+
+                    {/* 가격 추이 차트 */}
+                    <div className="bg-[#0a0a0a] rounded-lg p-4 mb-4">
+                      <h4 className="text-sm font-medium text-[#737373] mb-3">
+                        가격 추이 ({selectedPeriod === '24h' ? '24시간' : selectedPeriod === '7d' ? '7일' : '30일'})
+                      </h4>
+                      {isLoadingHistory ? (
+                        <div className="h-32 flex items-center justify-center">
+                          <div className="flex items-center gap-2 text-[#737373]">
+                            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>로딩 중...</span>
+                          </div>
+                        </div>
+                      ) : filteredHistory.length > 0 ? (
+                        <div className="h-32 flex items-end gap-0.5">
+                          {filteredHistory.map((item, index) => {
+                            const maxPrice = Math.max(...filteredHistory.map(h => h.minPrice));
+                            const minPrice = Math.min(...filteredHistory.map(h => h.minPrice));
+                            const range = maxPrice - minPrice || 1;
+                            const height = ((item.minPrice - minPrice) / range) * 80 + 20;
+                            return (
+                              <div
+                                key={index}
+                                className="flex-1 bg-[#f59e0b] rounded-t opacity-70 hover:opacity-100 transition-opacity cursor-pointer relative group"
+                                style={{ height: `${height}%`, minHeight: '4px', maxWidth: '12px' }}
+                              >
+                                {/* 툴팁 */}
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                                  <div className="bg-[#333] rounded px-2 py-1 text-xs whitespace-nowrap shadow-lg">
+                                    <div className="text-[#a3a3a3]">{item.date} {item.hour}:{String(item.minuteSlot || 0).padStart(2, '0')}</div>
+                                    <div className="text-[#f59e0b] font-medium">{formatPrice(item.minPrice)}</div>
+                                    <div className="text-[#737373]">{formatNumber(item.quantity)}개</div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[#737373] text-sm text-center py-6">
+                          해당 기간의 가격 데이터가 없습니다
+                        </p>
+                      )}
+
+                      {/* 가격 범위 표시 */}
+                      {filteredHistory.length > 0 && (
+                        <div className="flex justify-between mt-2 text-xs text-[#737373]">
+                          <span>최저 {formatPrice(Math.min(...filteredHistory.map(h => h.minPrice)))}</span>
+                          <span>최고 {formatPrice(Math.max(...filteredHistory.map(h => h.minPrice)))}</span>
+                        </div>
                       )}
                     </div>
+
+                    {/* 현재 매물 목록 */}
+                    {hasPrice && priceInfo.listings && priceInfo.listings.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-[#737373] mb-3">현재 매물</h4>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {priceInfo.listings.slice(0, 15).map((listing, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between bg-[#0a0a0a] rounded-lg px-3 py-2"
+                            >
+                              <span className="text-sm text-[#a3a3a3]">{listing.sellerName}</span>
+                              <div className="flex items-center gap-4">
+                                <span className="text-sm text-[#737373]">{formatNumber(listing.quantity)}개</span>
+                                <span className="text-sm font-medium text-[#22c55e]">{formatPrice(listing.price)}</span>
+                              </div>
+                            </div>
+                          ))}
+                          {priceInfo.listings.length > 15 && (
+                            <p className="text-xs text-[#737373] text-center py-1">
+                              +{priceInfo.listings.length - 15}개 더 있음
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
