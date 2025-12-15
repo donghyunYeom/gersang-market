@@ -330,7 +330,6 @@ export default function Home() {
           <MaterialsTab
             prices={prices}
             isLoading={isLoading || isInitializing}
-            priceHistory={[]}
           />
         )}
 
