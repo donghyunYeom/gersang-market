@@ -545,10 +545,10 @@ export interface BottleRecipe {
 export const BOTTLE_RECIPE: BottleRecipe = {
   name: '영혼이 봉인된 호리병',
   items: [
-    { name: '조선 선조의영혼석', quantity: 20 },  // 호리병 1개
-    { name: '일본 선조의영혼석', quantity: 20 },  // 호리병 1개
-    { name: '대만 선조의영혼석', quantity: 20 },  // 호리병 1개
-    { name: '중국 선조의영혼석', quantity: 20 },  // 호리병 1개
+    { name: '선조의 영혼석(조선)', quantity: 20 },  // 호리병 1개
+    { name: '선조의 영혼석(일본)', quantity: 20 },  // 호리병 1개
+    { name: '선조의 영혼석(대만)', quantity: 20 },  // 호리병 1개
+    { name: '선조의 영혼석(중국)', quantity: 20 },  // 호리병 1개
     { name: '철괴리호리병', quantity: 80 },       // 20개 × 4
     { name: '봉인의서', quantity: 4 },            // 1개 × 4
   ],

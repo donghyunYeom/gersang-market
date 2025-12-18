@@ -19,7 +19,7 @@ interface PriceHistoryData {
   quantity: number;
 }
 
-type PeriodType = '24h' | '7d' | '30d';
+type PeriodType = '24h' | '7d' | '30d' | '90d' | '180d' | '1y';
 
 export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,13 +39,14 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
     );
   }, [allMaterials, searchQuery]);
 
-  // 아이템 히스토리 조회
+  // 아이템 히스토리 조회 (일별 데이터 포함)
   const fetchItemHistory = useCallback(async (itemName: string) => {
     if (materialHistory[itemName]) return; // 이미 로드된 경우 스킵
 
     setIsLoadingHistory(true);
     try {
-      const response = await fetch(`/api/history?itemName=${encodeURIComponent(itemName)}`);
+      // includeDaily=true로 일별 집계 데이터도 함께 조회
+      const response = await fetch(`/api/history?itemName=${encodeURIComponent(itemName)}&includeDaily=true`);
       const data = await response.json();
       if (data.success && data.data) {
         setMaterialHistory(prev => ({
@@ -82,12 +83,21 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
       case '30d':
         cutoffTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
+      case '90d':
+        cutoffTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case '180d':
+        cutoffTime = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+        break;
+      case '1y':
+        cutoffTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
     }
 
     return history.filter(h => new Date(h.timestamp) >= cutoffTime);
   }, []);
 
-  // 역대 최고가/최저가 계산 (전체 히스토리 기준)
+  // 역대 최고가/최저가/평균가 계산 (전체 히스토리 기준)
   const getHistoricalStats = useCallback((itemName: string) => {
     const history = materialHistory[itemName] || [];
     const validHistory = history.filter(h => h.minPrice > 0);
@@ -98,11 +108,15 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
         historicalHighQty: 0,
         historicalLow: 0,
         historicalLowQty: 0,
+        overallAvg: 0,
+        totalQty: 0,
       };
     }
 
     let highEntry = validHistory[0];
     let lowEntry = validHistory[0];
+    let totalValue = 0;
+    let totalQty = 0;
 
     validHistory.forEach(entry => {
       if (entry.minPrice > highEntry.minPrice) {
@@ -111,13 +125,20 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
       if (entry.minPrice < lowEntry.minPrice) {
         lowEntry = entry;
       }
+      // 가중 평균 계산
+      totalValue += entry.avgPrice * entry.quantity;
+      totalQty += entry.quantity;
     });
+
+    const overallAvg = totalQty > 0 ? Math.round(totalValue / totalQty) : 0;
 
     return {
       historicalHigh: highEntry.minPrice,
       historicalHighQty: highEntry.quantity,
       historicalLow: lowEntry.minPrice,
       historicalLowQty: lowEntry.quantity,
+      overallAvg,
+      totalQty,
     };
   }, [materialHistory]);
 
@@ -246,16 +267,25 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
                 {/* 펼쳐진 상세 정보 */}
                 {isExpanded && (
                   <div className="border-t border-[#333] p-4 animate-fadeIn">
-                    {/* 역대 최고/최저가 */}
+                    {/* 역대 최고/평균/최저가 */}
                     {history.length > 0 && (
-                      <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="grid grid-cols-3 gap-3 mb-4">
                         <div className="bg-[#0a0a0a] rounded-lg p-3">
                           <div className="text-xs text-[#737373] mb-1">역대 최고가</div>
                           <div className="text-lg font-bold text-[#ef4444]">
                             {formatPrice(stats?.historicalHigh || 0)}
                           </div>
                           <div className="text-xs text-[#737373]">
-                            ({formatNumber(stats?.historicalHighQty || 0)}개 거래)
+                            ({formatNumber(stats?.historicalHighQty || 0)}개)
+                          </div>
+                        </div>
+                        <div className="bg-[#0a0a0a] rounded-lg p-3">
+                          <div className="text-xs text-[#737373] mb-1">전체 거래 평균가</div>
+                          <div className="text-lg font-bold text-[#f59e0b]">
+                            {formatPrice(stats?.overallAvg || 0)}
+                          </div>
+                          <div className="text-xs text-[#737373]">
+                            (총 {formatNumber(stats?.totalQty || 0)}개)
                           </div>
                         </div>
                         <div className="bg-[#0a0a0a] rounded-lg p-3">
@@ -264,15 +294,15 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
                             {formatPrice(stats?.historicalLow || 0)}
                           </div>
                           <div className="text-xs text-[#737373]">
-                            ({formatNumber(stats?.historicalLowQty || 0)}개 거래)
+                            ({formatNumber(stats?.historicalLowQty || 0)}개)
                           </div>
                         </div>
                       </div>
                     )}
 
                     {/* 기간 선택 */}
-                    <div className="flex gap-2 mb-3">
-                      {(['24h', '7d', '30d'] as PeriodType[]).map(period => (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {(['24h', '7d', '30d', '90d', '180d', '1y'] as PeriodType[]).map(period => (
                         <button
                           key={period}
                           onClick={(e) => {
@@ -285,7 +315,11 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
                               : 'bg-[#252525] text-[#737373] hover:text-white'
                           }`}
                         >
-                          {period === '24h' ? '24시간' : period === '7d' ? '7일' : '30일'}
+                          {period === '24h' ? '24시간' :
+                           period === '7d' ? '7일' :
+                           period === '30d' ? '30일' :
+                           period === '90d' ? '90일' :
+                           period === '180d' ? '180일' : '1년'}
                         </button>
                       ))}
                     </div>
@@ -293,7 +327,13 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
                     {/* 가격 추이 차트 */}
                     <div className="bg-[#0a0a0a] rounded-lg p-4 mb-4">
                       <h4 className="text-sm font-medium text-[#737373] mb-3">
-                        가격 추이 ({selectedPeriod === '24h' ? '24시간' : selectedPeriod === '7d' ? '7일' : '30일'})
+                        가격 추이 ({
+                          selectedPeriod === '24h' ? '24시간' :
+                          selectedPeriod === '7d' ? '7일' :
+                          selectedPeriod === '30d' ? '30일' :
+                          selectedPeriod === '90d' ? '90일' :
+                          selectedPeriod === '180d' ? '180일' : '1년'
+                        })
                       </h4>
                       {isLoadingHistory ? (
                         <div className="h-32 flex items-center justify-center">

@@ -4,6 +4,15 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Mercenary, PriceInfo, formatPrice, formatNumber, getAttributeColor, calculateTotalCost, getBottleRecipe, getOrbRecipe } from '@/lib/items';
 
+// 호리병 관련 아이템 이미지 매핑
+const BOTTLE_ITEM_IMAGES: Record<string, string> = {
+  '영혼이 봉인된 호리병': 'https://ik.imagekit.io/sga2sohyz/tr:cm-pad_resize,w-56,h-56:h-56,w-56/item/mixture/dudghsdlqhddlsehlsghflqud.webp',
+  '선조의 영혼석(조선)': 'https://ik.imagekit.io/sga2sohyz/tr:cm-pad_resize,w-56,h-56:h-56,w-56/item/drop/tjswhdmldudghstjr-whtjs.webp?c=1',
+  '선조의 영혼석(일본)': 'https://ik.imagekit.io/sga2sohyz/tr:cm-pad_resize,w-56,h-56:h-56,w-56/item/drop/tjswhdmldudghstjr-dlfqhs.webp?c=1',
+  '선조의 영혼석(대만)': 'https://ik.imagekit.io/sga2sohyz/tr:cm-pad_resize,w-56,h-56:h-56,w-56/item/drop/tjswhdmldudghstjr-eoaks.webp?c=1',
+  '선조의 영혼석(중국)': 'https://ik.imagekit.io/sga2sohyz/tr:cm-pad_resize,w-56,h-56:h-56,w-56/item/drop/tjswhdmldudghstjr-wndrnr.webp?c=1',
+};
+
 interface MercenaryCardProps {
   mercenary: Mercenary;
   prices: Record<string, PriceInfo>;
@@ -131,6 +140,15 @@ export default function MercenaryCard({
                               >
                                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                               </svg>
+                              <div className="relative w-6 h-6 rounded overflow-hidden bg-[#0a0a0a] flex-shrink-0">
+                                <Image
+                                  src={BOTTLE_ITEM_IMAGES['영혼이 봉인된 호리병']}
+                                  alt={item.name}
+                                  fill
+                                  className="object-contain"
+                                  unoptimized
+                                />
+                              </div>
                               {item.name}
                             </button>
                           ) : isOrb && orbRecipe ? (
@@ -182,27 +200,30 @@ export default function MercenaryCard({
                                 <span>🏺</span>
                                 호리병 {item.quantity}개 제작 재료 (조선/일본/대만/중국 각 1개)
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-2">
                                 {bottleRecipe.items.map(subItem => {
                                   const subPriceInfo = prices[subItem.name];
                                   const subHasPrice = subPriceInfo && subPriceInfo.minPrice > 0;
                                   const subSubtotal = subHasPrice ? subPriceInfo.minPrice * subItem.quantity : 0;
-                                  // 선조석은 각 20개씩, 철괴리/봉인의서는 20×4, 1×4 형식으로 표시
-                                  const isSeonjo = subItem.name.includes('선조의영혼석');
-                                  const perBottle = isSeonjo ? subItem.quantity : (subItem.name === '봉인의서' ? 1 : 20);
+                                  const itemImage = BOTTLE_ITEM_IMAGES[subItem.name];
                                   return (
                                     <div key={subItem.name} className="flex items-center justify-between text-xs">
-                                      <span className="text-[#a3a3a3]">{subItem.name}</span>
+                                      <div className="flex items-center gap-2">
+                                        {itemImage && (
+                                          <div className="relative w-6 h-6 rounded overflow-hidden bg-[#0a0a0a] flex-shrink-0">
+                                            <Image
+                                              src={itemImage}
+                                              alt={subItem.name}
+                                              fill
+                                              className="object-contain"
+                                              unoptimized
+                                            />
+                                          </div>
+                                        )}
+                                        <span className="text-[#a3a3a3]">{subItem.name}</span>
+                                      </div>
                                       <div className="flex items-center gap-3">
-                                        <span className="text-[#737373]">
-                                          {isSeonjo ? (
-                                            <span className="text-[#a855f7]">{formatNumber(subItem.quantity)}개</span>
-                                          ) : (
-                                            <>
-                                              {perBottle}개 × {item.quantity} = <span className="text-[#a855f7]">{formatNumber(subItem.quantity)}개</span>
-                                            </>
-                                          )}
-                                        </span>
+                                        <span className="text-[#a855f7]">{formatNumber(subItem.quantity)}개</span>
                                         {subHasPrice && (
                                           <span className="text-[#22c55e] tabular-nums">
                                             {formatPrice(subSubtotal)}

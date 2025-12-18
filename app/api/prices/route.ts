@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllUniqueItems, PriceInfo, PriceListing } from '@/lib/items';
-import { savePriceHistory } from '@/lib/priceHistory';
+import { savePriceHistory, aggregateOldDataToDaily } from '@/lib/priceHistory';
 
 const SERVER_ID = 5; // 봉황서버
 const BASE_URL = 'https://geota.co.kr/gersang/yukeuijeon';
@@ -161,6 +161,11 @@ export async function GET(request: NextRequest) {
         savedEntry = await savePriceHistory(prices);
         if (savedEntry) {
           console.log(`가격 히스토리 저장 완료: ${savedEntry.date} ${savedEntry.hour}시`);
+
+          // 30일 지난 데이터 일별 집계 (백그라운드)
+          aggregateOldDataToDaily().catch(err => {
+            console.error('일별 집계 오류:', err);
+          });
         }
       } catch (saveError) {
         console.error('히스토리 저장 오류:', saveError);

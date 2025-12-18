@@ -21,9 +21,25 @@ export interface PriceHistoryFile {
   entries: PriceHistoryEntry[];
 }
 
+// 일별 집계 데이터 구조
+export interface DailyPriceData {
+  date: string;           // "2025-12-15"
+  minPrice: number;       // 일별 최저가
+  maxPrice: number;       // 일별 최고가
+  avgPrice: number;       // 일별 평균가
+  totalQuantity: number;  // 일별 총 거래량
+}
+
+export interface DailyPriceHistory {
+  lastUpdated: string;
+  items: Record<string, DailyPriceData[]>;  // itemName -> daily data array
+}
+
 // KV 키 상수
 const HISTORY_KEY = 'price-history';
+const DAILY_HISTORY_KEY = 'price-history-daily';
 const MAX_ENTRIES = 8640; // 30일 × 24시간 × 12 (5분 단위)
+const MAX_DAILY_ENTRIES = 365; // 1년
 
 // Redis 클라이언트 초기화 (lazy initialization)
 let redis: Redis | null = null;
@@ -221,4 +237,150 @@ export async function getPriceStats(): Promise<{
     itemCount: allItems.size,
     lastUpdated: history.lastUpdated,
   };
+}
+
+// ============ 일별 집계 데이터 관련 함수들 ============
+
+// 일별 히스토리 읽기
+export async function readDailyPriceHistory(): Promise<DailyPriceHistory> {
+  const redisClient = getRedis();
+  if (!redisClient) {
+    return {
+      lastUpdated: new Date().toISOString(),
+      items: {},
+    };
+  }
+
+  try {
+    const history = await redisClient.get<DailyPriceHistory>(DAILY_HISTORY_KEY);
+    return history || {
+      lastUpdated: new Date().toISOString(),
+      items: {},
+    };
+  } catch (error) {
+    console.error('일별 히스토리 읽기 오류:', error);
+    return {
+      lastUpdated: new Date().toISOString(),
+      items: {},
+    };
+  }
+}
+
+// 일별 히스토리 저장
+async function writeDailyPriceHistory(history: DailyPriceHistory): Promise<boolean> {
+  const redisClient = getRedis();
+  if (!redisClient) return false;
+
+  try {
+    await redisClient.set(DAILY_HISTORY_KEY, history);
+    return true;
+  } catch (error) {
+    console.error('일별 히스토리 저장 오류:', error);
+    return false;
+  }
+}
+
+// 5분 데이터를 일별로 집계
+export async function aggregateOldDataToDaily(): Promise<void> {
+  const history = await readPriceHistory();
+  const dailyHistory = await readDailyPriceHistory();
+
+  if (history.entries.length === 0) return;
+
+  // 30일 전 날짜 계산
+  const now = new Date();
+  const cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+
+  // 30일 이전 데이터 중 아직 일별 집계 안된 날짜 찾기
+  const oldEntries = history.entries.filter(e => e.date < cutoffDateStr);
+  if (oldEntries.length === 0) return;
+
+  // 날짜별로 그룹화
+  const dateGroups: Record<string, PriceHistoryEntry[]> = {};
+  oldEntries.forEach(entry => {
+    if (!dateGroups[entry.date]) {
+      dateGroups[entry.date] = [];
+    }
+    dateGroups[entry.date].push(entry);
+  });
+
+  // 각 날짜에 대해 일별 집계 수행
+  for (const [date, entries] of Object.entries(dateGroups)) {
+    // 해당 날짜의 모든 아이템 집계
+    const itemStats: Record<string, { prices: number[]; quantities: number[] }> = {};
+
+    entries.forEach(entry => {
+      Object.entries(entry.prices).forEach(([itemName, priceData]) => {
+        if (!itemStats[itemName]) {
+          itemStats[itemName] = { prices: [], quantities: [] };
+        }
+        itemStats[itemName].prices.push(priceData.minPrice);
+        itemStats[itemName].quantities.push(priceData.quantity);
+      });
+    });
+
+    // 각 아이템의 일별 통계 계산 및 저장
+    for (const [itemName, stats] of Object.entries(itemStats)) {
+      if (!dailyHistory.items[itemName]) {
+        dailyHistory.items[itemName] = [];
+      }
+
+      // 이미 해당 날짜 데이터가 있는지 확인
+      const existingIndex = dailyHistory.items[itemName].findIndex(d => d.date === date);
+      if (existingIndex >= 0) continue; // 이미 집계됨
+
+      const minPrice = Math.min(...stats.prices);
+      const maxPrice = Math.max(...stats.prices);
+      const avgPrice = Math.round(stats.prices.reduce((a, b) => a + b, 0) / stats.prices.length);
+      const totalQuantity = Math.max(...stats.quantities); // 하루 중 최대 수량
+
+      dailyHistory.items[itemName].push({
+        date,
+        minPrice,
+        maxPrice,
+        avgPrice,
+        totalQuantity,
+      });
+
+      // 날짜순 정렬
+      dailyHistory.items[itemName].sort((a, b) => a.date.localeCompare(b.date));
+
+      // MAX_DAILY_ENTRIES 유지
+      if (dailyHistory.items[itemName].length > MAX_DAILY_ENTRIES) {
+        dailyHistory.items[itemName] = dailyHistory.items[itemName].slice(-MAX_DAILY_ENTRIES);
+      }
+    }
+  }
+
+  dailyHistory.lastUpdated = new Date().toISOString();
+  await writeDailyPriceHistory(dailyHistory);
+}
+
+// 특정 아이템의 일별 가격 히스토리 조회
+export async function getItemDailyHistory(itemName: string): Promise<DailyPriceData[]> {
+  const dailyHistory = await readDailyPriceHistory();
+  return dailyHistory.items[itemName] || [];
+}
+
+// 특정 아이템의 통합 히스토리 조회 (5분 상세 + 일별 집계)
+export async function getItemHistoryWithDaily(itemName: string): Promise<{
+  detailed: {
+    timestamp: string;
+    date: string;
+    hour: number;
+    minuteSlot: number;
+    minPrice: number;
+    maxPrice: number;
+    avgPrice: number;
+    quantity: number;
+  }[];
+  daily: DailyPriceData[];
+}> {
+  const [detailed, daily] = await Promise.all([
+    getItemPriceHistory(itemName),
+    getItemDailyHistory(itemName),
+  ]);
+
+  return { detailed, daily };
 }
