@@ -197,8 +197,16 @@ export default function MercenaryCard({
                           <td colSpan={4} className="py-0">
                             <div className="bg-[#0f0f0f] rounded-lg p-3 my-2 ml-4 border-l-2 border-[#a855f7]">
                               <div className="text-xs text-[#a855f7] font-medium mb-2 flex items-center gap-2">
-                                <span>🏺</span>
-                                호리병 {item.quantity}개 제작 재료 (조선/일본/대만/중국 각 1개)
+                                <div className="relative w-5 h-5 rounded overflow-hidden bg-[#0a0a0a] flex-shrink-0">
+                                  <Image
+                                    src={BOTTLE_ITEM_IMAGES['영혼이 봉인된 호리병']}
+                                    alt="호리병"
+                                    fill
+                                    className="object-contain"
+                                    unoptimized
+                                  />
+                                </div>
+                                호리병 {item.quantity}개 제작 재료 (조선/일본/대만/중국 각 20개)
                               </div>
                               <div className="space-y-2">
                                 {bottleRecipe.items.map(subItem => {
