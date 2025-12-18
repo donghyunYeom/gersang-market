@@ -68,34 +68,71 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
     }
   }, [expandedMaterial, fetchItemHistory]);
 
-  // 기간별 히스토리 필터링
+  // 데이터 다운샘플링 (차트 표시용)
+  const downsampleData = useCallback((data: PriceHistoryData[], maxPoints: number): PriceHistoryData[] => {
+    if (data.length <= maxPoints) return data;
+
+    const step = Math.ceil(data.length / maxPoints);
+    const result: PriceHistoryData[] = [];
+
+    for (let i = 0; i < data.length; i += step) {
+      const chunk = data.slice(i, Math.min(i + step, data.length));
+      if (chunk.length === 0) continue;
+
+      // 청크 내 대표값 계산 (평균)
+      const avgMinPrice = Math.round(chunk.reduce((sum, d) => sum + d.minPrice, 0) / chunk.length);
+      const avgMaxPrice = Math.round(chunk.reduce((sum, d) => sum + d.maxPrice, 0) / chunk.length);
+      const avgPrice = Math.round(chunk.reduce((sum, d) => sum + d.avgPrice, 0) / chunk.length);
+      const totalQty = chunk.reduce((sum, d) => sum + d.quantity, 0);
+
+      result.push({
+        ...chunk[0], // 첫 번째 아이템의 timestamp/date 사용
+        minPrice: avgMinPrice,
+        maxPrice: avgMaxPrice,
+        avgPrice: avgPrice,
+        quantity: Math.round(totalQty / chunk.length),
+      });
+    }
+
+    return result;
+  }, []);
+
+  // 기간별 히스토리 필터링 및 다운샘플링
   const getFilteredHistory = useCallback((history: PriceHistoryData[], period: PeriodType) => {
     const now = new Date();
     let cutoffTime: Date;
+    let maxChartPoints: number;
 
     switch (period) {
       case '24h':
         cutoffTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        maxChartPoints = 288; // 5분 단위 그대로
         break;
       case '7d':
         cutoffTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        maxChartPoints = 168; // 시간 단위
         break;
       case '30d':
         cutoffTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        maxChartPoints = 120; // 6시간 단위
         break;
       case '90d':
         cutoffTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        maxChartPoints = 90; // 일 단위
         break;
       case '180d':
         cutoffTime = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+        maxChartPoints = 90; // 2일 단위
         break;
       case '1y':
         cutoffTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        maxChartPoints = 73; // 5일 단위
         break;
     }
 
-    return history.filter(h => new Date(h.timestamp) >= cutoffTime);
-  }, []);
+    const filtered = history.filter(h => new Date(h.timestamp) >= cutoffTime);
+    return downsampleData(filtered, maxChartPoints);
+  }, [downsampleData]);
 
   // 역대 최고가/최저가/평균가 계산 (전체 히스토리 기준)
   const getHistoricalStats = useCallback((itemName: string) => {
@@ -346,17 +383,23 @@ export default function MaterialsTab({ prices, isLoading }: MaterialsTabProps) {
                           </div>
                         </div>
                       ) : filteredHistory.length > 0 ? (
-                        <div className="h-32 flex items-end gap-0.5">
+                        <div className="h-32 flex items-end gap-px overflow-hidden">
                           {filteredHistory.map((item, index) => {
                             const maxPrice = Math.max(...filteredHistory.map(h => h.minPrice));
                             const minPrice = Math.min(...filteredHistory.map(h => h.minPrice));
                             const range = maxPrice - minPrice || 1;
                             const height = ((item.minPrice - minPrice) / range) * 80 + 20;
+                            const barWidth = Math.max(2, Math.floor(300 / filteredHistory.length));
                             return (
                               <div
                                 key={index}
-                                className="flex-1 bg-[#f59e0b] rounded-t opacity-70 hover:opacity-100 transition-opacity cursor-pointer relative group"
-                                style={{ height: `${height}%`, minHeight: '4px', maxWidth: '12px' }}
+                                className="bg-[#f59e0b] rounded-t opacity-70 hover:opacity-100 transition-opacity cursor-pointer relative group flex-shrink-0"
+                                style={{
+                                  height: `${height}%`,
+                                  minHeight: '4px',
+                                  width: `${barWidth}px`,
+                                  minWidth: '2px',
+                                }}
                               >
                                 {/* 툴팁 */}
                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
